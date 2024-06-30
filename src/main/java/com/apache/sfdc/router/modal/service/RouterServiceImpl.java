@@ -31,21 +31,20 @@ public class RouterServiceImpl implements RouterService{
     private String loginUrl;
     public void SetSubCDC(String changeEvent) throws Exception {
 
-        SalesforceComponent salesforce = new SalesforceComponent();
-        salesforce.setLoginUrl(loginUrl);
-        salesforce.setClientId(clientId);
-        salesforce.setClientSecret(clientSecret);
-        salesforce.setUserName(userName);
-        salesforce.setPassword(password);
-        salesforce.setPackages(Arrays.toString(new String[]{"com.apache.sfdc.common"}));
+        SalesforceComponent sfComponent_1 = new SalesforceComponent();
+        sfComponent_1.setLoginUrl(loginUrl);
+        sfComponent_1.setClientId(clientId);
+        sfComponent_1.setClientSecret(clientSecret);
+        sfComponent_1.setUserName(userName);
+        sfComponent_1.setPassword(password);
+        sfComponent_1.setPackages("com.apache.sfdc.router.dto");
 
         RouteBuilder rb = new RouteBuilder() {
             @Override
             public void configure() throws Exception {
                 System.out.println("실행");
-
                 // Salesforce Pub/Sub API 구독 설정
-                from("salesforce:getGlobalObjects?rawPayload=true")
+                from("sfComponent1:subscribe:data/" + changeEvent +"?rawPayload=true")
                         .process(exchange -> {
                             Message in = exchange.getIn();
                             System.out.println(in.getBody());
@@ -55,7 +54,7 @@ public class RouterServiceImpl implements RouterService{
 
         CamelContext myCamelContext = new DefaultCamelContext();
         myCamelContext.addRoutes(rb);
-        myCamelContext.addComponent("salesforce", salesforce);
+        myCamelContext.addComponent("sfComponent1", sfComponent_1);
 
         try{
             myCamelContext.start();

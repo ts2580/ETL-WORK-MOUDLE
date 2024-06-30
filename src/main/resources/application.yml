@@ -6,6 +6,6 @@ camel:
             user-name: admin@ecologysyncmanagementco.kr.dev
             password: qwer1234!!NLIi077LCt55mBjVM5AJKyTH
             login-url: https://login.salesforce.com
-            api-version: 60
+            api-version: 61
 
 
