@@ -1,11 +1,17 @@
 camel:
     component:
-        salesforce:
+        salesforce-ecology:
             client-id: 3MVG9q4K8Dm94dAwF6D70zsfWDZO2vEz0CCf0bQtywOlbgdghIYL0JLpyG2HP5bvUkV5Lm1B.4bZE0z6pkVu3
             client-secret: A532570413C1AB3952E7CEDEBDBFF0735651F2F8011B093C8CE03A646FF9AD0A
             user-name: admin@ecologysyncmanagementco.kr.dev
             password: qwer1234!!NLIi077LCt55mBjVM5AJKyTH
             login-url: https://login.salesforce.com
-            api-version: 61
+
+        salesforce-sj:
+            client-id: 3MVG95mg0lk4batgePMPvmWhtCkufdqVIgJQ32OkosJzIcwZ4JPTPAHC_jE2sCgyY8E3qwQlPcjdZciFbsRpl
+            client-secret: 6D0905503B66B7C161637D352575B3C6D22DF9382048BA4D3A755CE1CB4621A7
+            user-name: test@aladin.com
+            password: qwer1234!CQ5mxg0LB4fIiTmun9vULnprj
+            login-url: https://login.salesforce.com
 
 
