@@ -31,7 +31,7 @@ public class SalesforceImageAttach {
         // 사용 라이브러리 org.apache.httpcomponents:httpmime:4.5.14
         // 사용 라이브러리 com.fasterxml.jackson.core:jackson-core:2.17.2
 
-        String filePath = "C:\\Users\\HSJ\\Downloads\\DALL·E 2024-07-16.webp";
+        String filePath = "C:\\Users\\HSJ\\Downloads\\1711214457.png";
         String imageName = "SungJin";
         String recordId = "001IR00001r6hlgYAA";
         
@@ -57,15 +57,16 @@ public class SalesforceImageAttach {
         if (response.getStatusLine().getStatusCode() != 201) {
             throw new RuntimeException("파일 업로드 실패 : " + response.getStatusLine().getReasonPhrase());
         }else{
+            // ContentDocument에 파일 생성 성공.
 
-            // 데이터 직렬화, 역직렬화는 모두 잭슨으로 한다.
+            // 데이터 직렬화, 역직렬화는 모두 잭슨으로 한다. 잭슨이 편해
             ObjectMapper objectMapper = new ObjectMapper();
             JsonNode rootNode = objectMapper.readTree(EntityUtils.toString(response.getEntity()));
             String fileId = rootNode.get("id").asText();
 
             System.out.println("파일 Id : " + fileId);
 
-            // ContentDocument에 올라간 차일을 레코드에 옮기자
+            // ContentDocument에 올라간 파일을 record에 옮기자
             post = new HttpPost(INSTANCE_URL + "/services/data/v61.0/sobjects/ContentDocumentLink/");
             post.setHeader("Authorization", "Bearer " + accessToken);
             post.setHeader("Content-Type", "application/json");
