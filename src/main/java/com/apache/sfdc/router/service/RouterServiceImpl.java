@@ -1,5 +1,6 @@
 package com.apache.sfdc.router.service;
 
+import com.apache.sfdc.common.MessageAggregationStrategy;
 import com.apache.sfdc.common.SalesforceOAuth;
 import com.apache.sfdc.router.dto.FieldDefinition;
 import com.apache.sfdc.router.repository.ETLRepository;
@@ -261,6 +262,9 @@ public class RouterServiceImpl implements RouterService{
             Map<String, Object> mapType
     ) throws Exception {
 
+        // DB에 sfid로 부어줬으니 sfid 추가.
+        mapType.put("sfid","Id");
+
         String selectedObject = mapProperty.get("selectedObject");
 
         // access token 을 직접 넣을수가 없군
@@ -280,46 +284,58 @@ public class RouterServiceImpl implements RouterService{
                 System.out.println("실행");
 
                 from("sf:subscribe:" + selectedObject)
+                        .aggregate(constant(true), new MessageAggregationStrategy())
+                        .completionTimeout(1000)
                         .process(exchange -> {
-                            Message message = exchange.getIn();
 
-                            // 오는 message의 형식이 일단 JSON이 아님. 그리고 Id도 바꿔줄 핑교가 있고
-                            Map<String, Object> mapParam = objectMapper.convertValue(message.getBody(), Map.class);
-                            mapParam.put("sfid", mapParam.get("Id"));
-                            mapParam.remove("Id");
-
-                            mapType.put("sfid","Id");
-
-                            // JsonNode로 처리해야 쌍따옴표로 처리하기 편함. 위에 데이터 부을때 코드랑 리팩토링해서 합치기도 편하고
-                            JsonNode rootNode = objectMapper.valueToTree(mapParam);
-
-                            StringBuilder soql = new StringBuilder();
+                            List<Object> messages = exchange.getIn().getBody(ArrayList.class);
 
                             List<String> listUnderQuery = new ArrayList<>();
 
-                            StringBuilder underQuery = new StringBuilder("(");
+                            StringBuilder soql = new StringBuilder();
 
-                            // 이미 mapType이 있으므로 여기선 한번에 처리. 한번에 처리 하므로 순서 맞음
-                            rootNode.fields().forEachRemaining(field -> {
-                                String fieldName = field.getKey();
-                                JsonNode fieldValue = field.getValue();
+                            List<Boolean> isZeroIdx = new ArrayList<>();
+                            isZeroIdx.add(true);
 
-                                soql.append(fieldName).append(",");
+                            for (Object message : messages) {
 
-                                if(mapType.get(fieldName).equals("datetime") && fieldValue != null){
-                                    // 애는 왜 soql 갈길떄랑 다르게오냐 ㅡㅡ
-                                    underQuery.append(fieldValue.toString().replace(".000Z","").replace("T"," ")).append(",");
-                                }else if(mapType.get(fieldName).equals("time") && fieldValue != null){
-                                    underQuery.append(fieldValue.toString().replace("Z","")).append(",");
-                                }else{
-                                    underQuery.append(fieldValue).append(",");
-                                }
-                            });
+                                // 오는 message의 형식이 일단 JSON이 아님. 그리고 Id도 바꿔줄 필요가 있고
+                                Map<String, Object> mapParam = objectMapper.convertValue(message, Map.class);
+                                mapParam.put("sfid", mapParam.get("Id"));
+                                mapParam.remove("Id");
 
-                            underQuery.deleteCharAt(underQuery.length() - 1);
-                            underQuery.append(")");
+                                // JsonNode로 처리해야 쌍따옴표로 처리하기 편함. 위에 데이터 부을때 코드랑 리팩토링해서 합치기도 편하고
+                                JsonNode rootNode = objectMapper.valueToTree(mapParam);
 
-                            listUnderQuery.add(String.valueOf(underQuery));
+                                StringBuilder underQuery = new StringBuilder("(");
+
+                                // 이미 mapType이 있으므로 여기선 한번에 처리. 한번에 처리 하므로 순서 맞음
+                                rootNode.fields().forEachRemaining(field -> {
+                                    String fieldName = field.getKey();
+                                    JsonNode fieldValue = field.getValue();
+
+                                    // Insert into절은 한번만 돌면 되니까
+                                    if(isZeroIdx.get(0)){
+                                        soql.append(fieldName).append(",");
+                                    }
+
+                                    if(mapType.get(fieldName).equals("datetime") && fieldValue != null){
+                                        // 애는 왜 soql 갈길때랑 다르게오냐 ㅡㅡ
+                                        underQuery.append(fieldValue.toString().replace(".000Z","").replace("T"," ")).append(",");
+                                    }else if(mapType.get(fieldName).equals("time") && fieldValue != null){
+                                        underQuery.append(fieldValue.toString().replace("Z","")).append(",");
+                                    }else{
+                                        underQuery.append(fieldValue).append(",");
+                                    }
+                                });
+
+                                underQuery.deleteCharAt(underQuery.length() - 1);
+                                underQuery.append(")");
+
+                                isZeroIdx.set(0, false);
+
+                                listUnderQuery.add(String.valueOf(underQuery));
+                            }
 
                             soql.deleteCharAt(soql.length() - 1);
 
@@ -337,9 +353,8 @@ public class RouterServiceImpl implements RouterService{
                             long seconds = interval.toSecondsPart();
 
                             System.out.println("테이블 : " + selectedObject + ". 삽입된 데이터 수 : " + insertedData + ". 소요시간 : " + hours + "시간 " + minutes + "분 " + seconds + "초");
-
                         })
-                        .log("${body}");
+                        .log("Message : ${body}");
             }
         };
 
