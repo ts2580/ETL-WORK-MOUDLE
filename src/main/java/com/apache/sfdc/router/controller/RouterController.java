@@ -3,10 +3,14 @@ package com.apache.sfdc.router.controller;
 import com.apache.sfdc.common.SalesforceOAuth;
 import com.apache.sfdc.router.service.RouterService;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 @RestController
@@ -17,12 +21,11 @@ public class RouterController {
     private final RouterService routerService;
 
     @PostMapping("/pushtopic")
-    public String setTopic(@RequestParam Map<String, String> mapParam) throws Exception {
+    public String setTopic(@RequestBody String json) throws Exception {
 
-        // x-www-form-urlencoded로 보냈으므로 @RequestParam으로 받음.
+        ObjectMapper objectMapper = new ObjectMapper();
 
-        String mapPropertyJson = mapParam.get("mapProperty");
-        Map<String, String> mapProperty = new ObjectMapper().readValue(mapPropertyJson, new TypeReference<Map<String, String>>(){});
+        Map<String, String> mapProperty = objectMapper.readValue(json, Map.class);
 
         // access token 가져오기
         String token = SalesforceOAuth.getAccessToken(mapProperty);
