@@ -3,9 +3,10 @@
 
 <mapper namespace="com.apache.sfdc.router.repository.ETLRepository">
 
-    <select id="setFieldDef" parameterType="String">
+    <select id="setTable" parameterType="String">
         ${DDL}
     </select>
+
 
     <!-- #은 Object를 받을 때. 문자열은 $로 처리-->
     <insert id="insertObject">
