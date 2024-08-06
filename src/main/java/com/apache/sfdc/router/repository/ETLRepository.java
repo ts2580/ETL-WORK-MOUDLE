@@ -11,4 +11,6 @@ public interface ETLRepository {
     void setFieldDef(String ddl);
 
     int insertObject(@Param("upperQuery") String upperQuery, @Param("listUnderQuery") List<String> listUnderQuery);
+
+    void setTable(String string);
 }

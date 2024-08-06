@@ -1,16 +1,16 @@
 package com.apache.sfdc.router.service;
 
 import com.apache.sfdc.common.SalesforceOAuth;
+import com.apache.sfdc.common.SalesforceRouterBuilder;
 import com.apache.sfdc.router.dto.FieldDefinition;
 import com.apache.sfdc.router.repository.ETLRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
+import okhttp3.*;
 import org.apache.camel.CamelContext;
 import org.apache.camel.Message;
 import org.apache.camel.builder.RouteBuilder;
@@ -23,21 +23,22 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
 @RequiredArgsConstructor
-public class RouterServiceImpl implements RouterService{
-
+public class RouterServiceImpl implements RouterService {
     private final ETLRepository etlRepository;
 
     @Override
-    public Map<String,Object> setTable(Map<String, String> mapProperty, String token) {
-
-        String selectedObject = mapProperty.get("selectedObject");
+    public Map<String, Object> setTable(Map<String, String> mapProperty, String token) {
+        String selectedObject = mapProperty.get("selectedObject"); // 체크박스로 선택한 Object
         String instanceUrl = mapProperty.get("instanceUrl");
 
-        Map<String,Object> returnMap = new HashMap<>();
+        Map<String, Object> returnMap = new HashMap<>(); // 리턴에 담을거 => Type, Query
 
         List<FieldDefinition> listDef = new ArrayList<>();
 
@@ -61,60 +62,67 @@ public class RouterServiceImpl implements RouterService{
         List<String> listFields = new ArrayList<>();
 
         // soql로 받아온 값 변환용 맵
-        Map<String,String> mapType = new HashMap<>();
+        Map<String, String> mapType = new HashMap<>();
 
-        try(Response response = client.newCall(request).execute()) {
+        try (Response response = client.newCall(request).execute()) {
             String responseBody = Objects.requireNonNull(response.body()).string();
 
             // 세일즈 포스로 따지면 JSON.deserializeUntyped();
             rootNode = objectMapper.readTree(responseBody);
 
-            JsonNode fields = rootNode.get("fields");
+            JsonNode fields = rootNode.get("fields"); // FieldDefinition 의 List
 
-            listDef = objectMapper.convertValue(fields, new TypeReference<List<FieldDefinition>>() {});
+            listDef = objectMapper.convertValue(fields, new TypeReference<List<FieldDefinition>>() {
+            });
 
             ddl.append("CREATE OR REPLACE table config.").append(selectedObject).append("(");
 
-            for(FieldDefinition obj : listDef){
-
+            for (FieldDefinition obj : listDef) {
                 mapType.put(obj.name, obj.type);
 
-                // 데이터 타입 확인용
-                // System.out.println(obj.name + " : " + obj.type);
 
-                // 세일즈포스에서 만드는 모든 필드타입들은 하단의 Type으로 모인다. 특정 Object 타입(Address, Name 등)은 빼주자
+                // salesforce에서 만드는 모든 type들은 하단의 case로 모인다. 특정 Object Type (Address 나 FirstName 생략)
                 switch (obj.type) {
                     case "id" -> {
                         ddl.append("sfid VARCHAR(18) primary key not null comment '").append(obj.label).append("',");
-                    }case "textarea" -> {
+                    }
+                    case "textarea" -> {
                         if (obj.length > 4000) {
                             ddl.append(obj.name).append(" TEXT comment '").append(obj.label).append("',");
                         } else {
                             ddl.append(obj.name).append(" VARCHAR(").append(obj.length).append(") comment '").append(obj.label).append("',");
                         }
                         listFields.add(obj.name);
-                    }case "reference" ->{
+                    }
+                    case "reference" -> {
                         ddl.append(obj.name).append(" VARCHAR(18) comment '").append(obj.label).append("',");
                         listFields.add(obj.name);
-                    }case "string", "picklist", "multipicklist", "phone", "url" ->{
+                    }
+                    case "string", "picklist", "multipicklist", "phone", "url" -> {
                         ddl.append(obj.name).append(" VARCHAR(").append(obj.length).append(") comment '").append(obj.label).append("',");
                         listFields.add(obj.name);
-                    }case "boolean" -> {
+                    }
+                    case "boolean" -> {
                         ddl.append(obj.name).append(" boolean comment '").append(obj.label).append("',");
                         listFields.add(obj.name);
-                    }case "datetime" ->{
+                    }
+                    case "datetime" -> {
                         ddl.append(obj.name).append(" TIMESTAMP comment '").append(obj.label).append("',");
                         listFields.add(obj.name);
-                    }case "date" -> {
+                    }
+                    case "date" -> {
                         ddl.append(obj.name).append(" date comment '").append(obj.label).append("',");
                         listFields.add(obj.name);
-                    }case "time" -> {
+                    }
+                    case "time" -> {
                         ddl.append(obj.name).append(" time comment '").append(obj.label).append("',");
                         listFields.add(obj.name);
-                    }case "double", "percent", "currency" -> {
+                    }
+                    case "double", "percent", "currency" -> {
                         ddl.append(obj.name).append(" double precision comment '").append(obj.label).append("',");
                         listFields.add(obj.name);
-                    }case "int" -> {
+                    }
+                    case "int" -> {
                         ddl.append(obj.name).append(" int comment '").append(obj.label).append("',");
                         listFields.add(obj.name);
                     }
@@ -122,34 +130,31 @@ public class RouterServiceImpl implements RouterService{
             }
 
             ddl.deleteCharAt(ddl.length() - 1);
-            ddl.append("); ");
+            ddl.append(");");
 
-        }catch (IOException e) {
-            System.out.println(e.getMessage());
-            return null;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
 
         returnMap.put("mapType", mapType);
 
-        // 테이블 만들기
-        etlRepository.setFieldDef(ddl.toString());
+        // 테이블 생성
+        etlRepository.setTable(ddl.toString());
 
-        // 데이터 쿼리 및 동적 Insert into 구성용
+        // 생성 후 바로 데이터 부어주기
         StringBuilder soql = new StringBuilder();
-
-        // PushTopic은 large TextArea 지원 안함 ㅡㅡ
+        // longtextarea의 경우 pushtopic 으로 사용 못함
         StringBuilder soqlForPushTopic = new StringBuilder();
 
         for (String field : listFields) {
             soql.append(field).append(",");
-
-            if(!mapType.get(field).equals("textarea")){
+            if (!mapType.get(field).equals("textarea")) {
                 soqlForPushTopic.append(field).append(",");
             }
         }
 
-        soqlForPushTopic.deleteCharAt(soqlForPushTopic.length() - 1);
         soql.deleteCharAt(soql.length() - 1);
+        soqlForPushTopic.deleteCharAt(soqlForPushTopic.length() - 1);
 
         returnMap.put("soqlForPushTopic", soqlForPushTopic);
 
@@ -161,41 +166,57 @@ public class RouterServiceImpl implements RouterService{
                 .addHeader("Content-Type", "application/json")
                 .build();
 
-        try(Response response = client.newCall(request).execute()) {
-
+        try (Response response = client.newCall(request).execute()){
+            // 받아온 response를 JSON으로
             rootNode = objectMapper.readTree(Objects.requireNonNull(response.body()).string());
+            // 레코드의 Array
             JsonNode records = rootNode.get("records");
-
             String upperQuery = "Insert Into config." + selectedObject + "(sfid, " + soql + ") " + "values";
 
-            // 객체로 넣을려면 dto가 필요한데. 문자열로 풀어서 넣는것 말고 다른 방법 없을까.
-
             List<String> listUnderQuery = new ArrayList<>();
-
             StringBuilder underQuery;
+            // JSONNode가 List인게 확실하면 for문 사용가능
             for (JsonNode record : records) {
-
                 underQuery = new StringBuilder();
-                underQuery.append("(").append(record.get("Id")).append(",");
+                underQuery.append("( ").append(record.get("Id")).append(",");
 
                 for (String field : listFields) {
-
                     if(mapType.get(field).equals("datetime")){
-                        underQuery.append(record.get(field).toString().replace(".000+0000","").replace("T"," ")).append(",");
+//                        if (record.get(field) != null && record.get(field).asText() != null) {
+//                            System.out.println("======================================");
+//                            System.out.println(record.get(field));
+//                            // DateTimeFormatter를 사용하여 원본 문자열을 ZonedDateTime 객체로 변환
+//                            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+//                            ZonedDateTime zonedDateTime = ZonedDateTime.parse(record.get(field).asText(), formatter);
+//
+//                            // MariaDB 형식의 문자열로 변환
+//                            DateTimeFormatter mariadbFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+//                            String mariadbDatetimeStr = zonedDateTime.withZoneSameInstant(ZoneOffset.UTC).format(mariadbFormatter);
+//
+//                            underQuery.append(mariadbDatetimeStr).append(",");
+//                        }
+
+                        if(mapType.get(field).equals("datetime")){
+                            underQuery.append(record.get(field).toString().replace(".000+0000","").replace("T"," ")).append(",");
+                        }else if(mapType.get(field).equals("time")){
+                            underQuery.append(record.get(field).toString().replace("Z","")).append(",");
+                        }else{
+                            underQuery.append(record.get(field)).append(",");
+                        }
                     }else if(mapType.get(field).equals("time")){
+                        // todo Time 필드 바꾸기
                         underQuery.append(record.get(field).toString().replace("Z","")).append(",");
                     }else{
                         underQuery.append(record.get(field)).append(",");
                     }
-
                 }
 
                 underQuery.deleteCharAt(underQuery.length() - 1);
                 underQuery.append(")");
-
                 listUnderQuery.add(String.valueOf(underQuery));
             }
 
+            // 시간 체크
             Instant start = Instant.now();
 
             int insertedData = etlRepository.insertObject(upperQuery, listUnderQuery);
@@ -209,45 +230,51 @@ public class RouterServiceImpl implements RouterService{
 
             System.out.println("테이블 : " + selectedObject + ". 삽입된 데이터 수 : " + insertedData + ". 소요시간 : " + hours + "시간 " + minutes + "분 " + seconds + "초");
 
-        }catch (IOException e) {
-            System.out.println(e.getMessage());
+
+            } catch (IOException e) {
+            throw new RuntimeException(e);
         }
+
 
         return returnMap;
     }
 
-    @SneakyThrows
     @Override
-    public String setPushTopic(Map<String, String> mapProperty, String token, String soql) {
-
+    public String setPushTopic(Map<String, String> mapProperty, Map<String, Object> mapReturn, String token) throws Exception {
         String selectedObject = mapProperty.get("selectedObject");
         String instanceUrl = mapProperty.get("instanceUrl");
-
-        // 하나의 String만 만들면 되므로 StringBuilder 안쓸꺼
-        String pushTopic = "PushTopic pushTopic = new PushTopic();" + "pushTopic.Query = 'SELECT Id, " +
-                soql + " FROM " + selectedObject + "';" +
-                "pushTopic.Name = '" + selectedObject + "';" +
-                "pushTopic.ApiVersion = " + 61.0 + ";" +
-                "pushTopic.NotifyForOperationCreate = " + true + ";" +
-                "pushTopic.NotifyForOperationUpdate = " + true + ";" +
-                "pushTopic.NotifyForOperationUndelete = " + true + ";" +
-                "pushTopic.NotifyForOperationDelete = " + true + ";" +
-                "insert pushTopic;";
-
-        OkHttpClient client = new OkHttpClient();
-
-        Request request = new Request.Builder()
-                .url(instanceUrl + "/services/data/v61.0/tooling/executeAnonymous/?anonymousBody=" + URLEncoder.encode(pushTopic,StandardCharsets.UTF_8))
-                .addHeader("Authorization", "Bearer " + token)
-                .addHeader("Content-Type", "application/json")
-                .build();
+        // 푸시토픽 생성하기
+        Map<String, Object> pushTopic = new HashMap<>();
+        pushTopic.put("Name", selectedObject);
+        pushTopic.put("Query", "SELECT Id, " + String.valueOf(mapReturn.get("soqlForPushTopic")) + " FROM "  + selectedObject);
+        pushTopic.put("ApiVersion", 61.0);
+        pushTopic.put("NotifyForOperationCreate", true);
+        pushTopic.put("NotifyForOperationUpdate", true);
+        pushTopic.put("NotifyForOperationUndelete", true);
+        pushTopic.put("NotifyForOperationDelete", true);
+        pushTopic.put("NotifyForFields", "Referenced");
 
         ObjectMapper objectMapper = new ObjectMapper();
+        // JSON 문자열로 변환
+        String json = objectMapper.writeValueAsString(pushTopic);
+
+        // RequestBody 생성
+        RequestBody body = RequestBody.create(json, MediaType.get("application/json; charset=utf-8"));
+
+        Request request = new Request.Builder()
+                .url(instanceUrl + "/services/data/v61.0/sobjects/PushTopic")
+                .addHeader("Authorization", "Bearer " + token)
+                .addHeader("Content-Type", "application/json")
+                .post(body)
+                .build();
+
+        OkHttpClient client = new OkHttpClient();
         String returnMsg = "";
         try(Response response = client.newCall(request).execute()) {
-            JsonNode rootNode = objectMapper.readTree(Objects.requireNonNull(response.body()).string());
-            returnMsg = rootNode.get("success").asText();
-        }catch (Exception e){
+            returnMsg = response.body().string();
+
+
+        } catch (IOException e) {
             System.out.println(e.getMessage());
         }
 
@@ -255,11 +282,8 @@ public class RouterServiceImpl implements RouterService{
     }
 
     @Override
-    public void subscribePushTopic(
-            Map<String, String> mapProperty,
-            String token,
-            Map<String, Object> mapType
-    ) throws Exception {
+    public void subscribePushTopic(Map<String, String> mapProperty, String token, Map<String, Object> mapType) throws Exception {
+        mapType.put("sfid", "Id");
 
         String selectedObject = mapProperty.get("selectedObject");
 
@@ -272,79 +296,10 @@ public class RouterServiceImpl implements RouterService{
         sfEcology.setPassword(mapProperty.get("password"));
         sfEcology.setPackages("com.apache.sfdc.router.dto");
 
-        ObjectMapper objectMapper = new ObjectMapper();
-
-        RouteBuilder rb = new RouteBuilder() {
-            @Override
-            public void configure() {
-                System.out.println("실행");
-
-                from("sf:subscribe:" + selectedObject)
-                        .process(exchange -> {
-                            Message message = exchange.getIn();
-
-                            // 오는 message의 형식이 일단 JSON이 아님. 그리고 Id도 바꿔줄 핑교가 있고
-                            Map<String, Object> mapParam = objectMapper.convertValue(message.getBody(), Map.class);
-                            mapParam.put("sfid", mapParam.get("Id"));
-                            mapParam.remove("Id");
-
-                            mapType.put("sfid","Id");
-
-                            // JsonNode로 처리해야 쌍따옴표로 처리하기 편함. 위에 데이터 부을때 코드랑 리팩토링해서 합치기도 편하고
-                            JsonNode rootNode = objectMapper.valueToTree(mapParam);
-
-                            StringBuilder soql = new StringBuilder();
-
-                            List<String> listUnderQuery = new ArrayList<>();
-
-                            StringBuilder underQuery = new StringBuilder("(");
-
-                            // 이미 mapType이 있으므로 여기선 한번에 처리. 한번에 처리 하므로 순서 맞음
-                            rootNode.fields().forEachRemaining(field -> {
-                                String fieldName = field.getKey();
-                                JsonNode fieldValue = field.getValue();
-
-                                soql.append(fieldName).append(",");
-
-                                if(mapType.get(fieldName).equals("datetime") && fieldValue != null){
-                                    // 애는 왜 soql 갈길떄랑 다르게오냐 ㅡㅡ
-                                    underQuery.append(fieldValue.toString().replace(".000Z","").replace("T"," ")).append(",");
-                                }else if(mapType.get(fieldName).equals("time") && fieldValue != null){
-                                    underQuery.append(fieldValue.toString().replace("Z","")).append(",");
-                                }else{
-                                    underQuery.append(fieldValue).append(",");
-                                }
-                            });
-
-                            underQuery.deleteCharAt(underQuery.length() - 1);
-                            underQuery.append(")");
-
-                            listUnderQuery.add(String.valueOf(underQuery));
-
-                            soql.deleteCharAt(soql.length() - 1);
-
-                            String upperQuery = "Insert Into config." + selectedObject + "(" + soql + ") " + "values";
-
-                            Instant start = Instant.now();
-
-                            int insertedData = etlRepository.insertObject(upperQuery, listUnderQuery);
-
-                            Instant end = Instant.now();
-                            Duration interval = Duration.between(start, end);
-
-                            long hours = interval.toHours();
-                            long minutes = interval.toMinutesPart();
-                            long seconds = interval.toSecondsPart();
-
-                            System.out.println("테이블 : " + selectedObject + ". 삽입된 데이터 수 : " + insertedData + ". 소요시간 : " + hours + "시간 " + minutes + "분 " + seconds + "초");
-
-                        })
-                        .log("${body}");
-            }
-        };
+        RouteBuilder routeBuilder = new SalesforceRouterBuilder(selectedObject, mapType, etlRepository);
 
         CamelContext myCamelContext = new DefaultCamelContext();
-        myCamelContext.addRoutes(rb);
+        myCamelContext.addRoutes(routeBuilder);
         myCamelContext.addComponent("sf", sfEcology);
 
         try{
