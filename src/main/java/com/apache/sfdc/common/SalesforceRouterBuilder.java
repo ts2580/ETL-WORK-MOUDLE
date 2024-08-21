@@ -3,6 +3,8 @@ package com.apache.sfdc.common;
 import com.apache.sfdc.router.repository.ETLRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.camel.AggregationStrategy;
+import org.apache.camel.Exchange;
 import org.apache.camel.Message;
 import org.apache.camel.builder.RouteBuilder;
 
@@ -28,50 +30,76 @@ public class SalesforceRouterBuilder extends RouteBuilder {
     @Override
     public void configure() throws Exception {
         from("sf:subscribe:" + selectedObject)
+                /******리스트로 변경*******/
+                // 메시지들을 5초 동안 모아서 리스트로 처리할거임..Thread.sleep 안쓰도록
+                .aggregate(constant(true), new AggregationStrategy() {
+                    @Override
+                    public Exchange aggregate(Exchange oldExchange, Exchange newExchange) {
+                        //Exception in thread "Camel (camel-2) thread #7 - Aggregator" java.lang.StackOverflowError
+                        // 여기서 잘 처리해줘야댐 - 문서 : https://camel.apache.org/components/4.4.x/eips/aggregate-eip.html
+                        List<Object> list;
+                        if (oldExchange == null) {
+                            list = new ArrayList<>();
+                            list.add(newExchange.getIn().getBody());
+                            newExchange.getIn().setBody(list);
+                            return newExchange;
+                        } else {
+                            list = oldExchange.getIn().getBody(List.class);
+                            list.add(newExchange.getIn().getBody());
+                            return oldExchange;
+                        }
+                    }
+                })
+                .completionInterval(5000) // 5초 동안 메시지를 모음
                 .process((exchange) -> {
+
                     // 메세지는 단건으로 옴
-                    Message message = exchange.getIn();
+//                    Message message = exchange.getIn();
+
+                    /******리스트로 변경*******/
+                    // List<Message>로 받으면 에러남.. Object로 받자
+                    List<Object> messageBodies = exchange.getIn().getBody(List.class);
+                    List<String> listUnderQuery = new ArrayList<>();
+                    StringBuilder soql = new StringBuilder();
+                    // soql을 한번만 설정해주기 위한 변수
+                    boolean isFirst = true;
 
                     ObjectMapper objectMapper = new ObjectMapper();
+                    for (Object body : messageBodies) {
+                        Map<String, Object> mapParam = objectMapper.convertValue(body, Map.class);
+                        mapParam.put("sfid", mapParam.get("Id"));
+                        mapParam.remove("Id");
 
-                    // 오는 message의 형식이 일단 JSON이 아님. 그리고 Id도 바꿔줄 필요가 있고
-                    Map<String, Object> mapParam = objectMapper.convertValue(message.getBody(), Map.class);
-                    mapParam.put("sfid", mapParam.get("Id"));
-                    mapParam.remove("Id");
+                        JsonNode rootNode = objectMapper.valueToTree(mapParam);
+                        StringBuilder underQuery = new StringBuilder("(");
 
-                    // JsonNode로 처리해야 쌍따옴표로 처리하기 편함. 위에 데이터 부을때 코드랑 리팩토링해서 합치기도 편하고
-                    JsonNode rootNode = objectMapper.valueToTree(mapParam);
-
-                    StringBuilder soql = new StringBuilder();
-                    // 단건으로 오지만 repo 재활용하려고 + 숙제임
-                    // Array 처리할 때 쓰임
-                    List<String> listUnderQuery = new ArrayList<>();
-
-                    StringBuilder underQuery = new StringBuilder("(");
-
-                    // 이미 mapType이 있으므로 여기선 한번에 처리. 한번에 처리 하므로 순서 맞음
-                    // forEachRemaining =>  더이상 key value 뽑을 수 없을 때까지 forEach 돌아감
-                    rootNode.fields().forEachRemaining(field -> {
-                        String fieldName = field.getKey();
-                        JsonNode fieldValue = field.getValue();
-
-                        soql.append(fieldName).append(",");
-
-                        if(mapType.get(fieldName).equals("datetime") && fieldValue != null){
-                            // 애는 왜 soql 갈길떄랑 다르게오냐 ㅡㅡ
-                            underQuery.append(fieldValue.toString().replace(".000Z","").replace("T"," ")).append(",");
-                        }else if(mapType.get(fieldName).equals("time") && fieldValue != null){
-                            underQuery.append(fieldValue.toString().replace("Z","")).append(",");
-                        }else{
-                            underQuery.append(fieldValue).append(",");
+                        // soql은 한번만 설정하기 (Insert에 들어갈 필드임)
+                        if (isFirst) {
+                            rootNode.fields().forEachRemaining(field -> {
+                                String fieldName = field.getKey();
+                                soql.append(fieldName).append(",");
+                            });
+                            isFirst = false;
                         }
-                    });
 
-                    underQuery.deleteCharAt(underQuery.length() - 1);
-                    underQuery.append(")");
+                        rootNode.fields().forEachRemaining(field -> {
+                            String fieldName = field.getKey();
+                            JsonNode fieldValue = field.getValue();
 
-                    // 하나밖에 없지만 담아줌
-                    listUnderQuery.add(String.valueOf(underQuery));
+                            if (mapType.get(fieldName).equals("datetime") && fieldValue != null) {
+                                underQuery.append(fieldValue.toString().replace(".000Z", "").replace("T", " ")).append(",");
+                            } else if (mapType.get(fieldName).equals("time") && fieldValue != null) {
+                                underQuery.append(fieldValue.toString().replace("Z", "")).append(",");
+                            } else {
+                                underQuery.append(fieldValue).append(",");
+                            }
+                        });
+
+                        underQuery.deleteCharAt(underQuery.length() - 1);
+                        underQuery.append(")");
+                        listUnderQuery.add(String.valueOf(underQuery));
+
+                    }
 
                     soql.deleteCharAt(soql.length() - 1);
 
@@ -88,6 +116,7 @@ public class SalesforceRouterBuilder extends RouteBuilder {
                     long minutes = interval.toMinutesPart();
                     long seconds = interval.toSecondsPart();
 
+                    System.out.println("=====================================SalesforceRouterBuilder=====================================");
                     System.out.println("테이블 : " + selectedObject + ". 삽입된 데이터 수 : " + insertedData + ". 소요시간 : " + hours + "시간 " + minutes + "분 " + seconds + "초");
                 });
     }
