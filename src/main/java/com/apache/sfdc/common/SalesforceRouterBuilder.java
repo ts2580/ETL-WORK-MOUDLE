@@ -30,94 +30,80 @@ public class SalesforceRouterBuilder extends RouteBuilder {
     @Override
     public void configure() throws Exception {
         from("sf:subscribe:" + selectedObject)
-                /******리스트로 변경*******/
                 // 메시지들을 5초 동안 모아서 리스트로 처리할거임..Thread.sleep 안쓰도록
-                .aggregate(constant(true), new AggregationStrategy() {
-                    @Override
-                    public Exchange aggregate(Exchange oldExchange, Exchange newExchange) {
-                        //Exception in thread "Camel (camel-2) thread #7 - Aggregator" java.lang.StackOverflowError
-                        // 여기서 잘 처리해줘야댐 - 문서 : https://camel.apache.org/components/4.4.x/eips/aggregate-eip.html
-                        List<Object> list;
-                        if (oldExchange == null) {
-                            list = new ArrayList<>();
-                            list.add(newExchange.getIn().getBody());
-                            newExchange.getIn().setBody(list);
-                            return newExchange;
-                        } else {
-                            list = oldExchange.getIn().getBody(List.class);
-                            list.add(newExchange.getIn().getBody());
-                            return oldExchange;
-                        }
-                    }
-                })
+                .aggregate(constant(true), new ArrayListAggregationStrategy())
                 .completionInterval(5000) // 5초 동안 메시지를 모음
                 .process((exchange) -> {
 
-                    // 메세지는 단건으로 옴
-//                    Message message = exchange.getIn();
+                    ObjectMapper objectMapper = new ObjectMapper();
 
-                    /******리스트로 변경*******/
-                    // List<Message>로 받으면 에러남.. Object로 받자
-                    List<Object> messageBodies = exchange.getIn().getBody(List.class);
+
+                    // List<Message>로 받으면 에러남.. 타입 변환해서 받자
+                    Map<String, List<Object>> messageBodies = exchange.getIn().getBody(Map.class);
+
+                    System.out.println(objectMapper.writeValueAsString(messageBodies));
+
                     List<String> listUnderQuery = new ArrayList<>();
                     StringBuilder soql = new StringBuilder();
+                    
+                    // todo CUD 쿼리 만들기
+                    
                     // soql을 한번만 설정해주기 위한 변수
-                    boolean isFirst = true;
-
-                    ObjectMapper objectMapper = new ObjectMapper();
-                    for (Object body : messageBodies) {
-                        Map<String, Object> mapParam = objectMapper.convertValue(body, Map.class);
-                        mapParam.put("sfid", mapParam.get("Id"));
-                        mapParam.remove("Id");
-
-                        JsonNode rootNode = objectMapper.valueToTree(mapParam);
-                        StringBuilder underQuery = new StringBuilder("(");
-
-                        // soql은 한번만 설정하기 (Insert에 들어갈 필드임)
-                        if (isFirst) {
-                            rootNode.fields().forEachRemaining(field -> {
-                                String fieldName = field.getKey();
-                                soql.append(fieldName).append(",");
-                            });
-                            isFirst = false;
-                        }
-
-                        rootNode.fields().forEachRemaining(field -> {
-                            String fieldName = field.getKey();
-                            JsonNode fieldValue = field.getValue();
-
-                            if (mapType.get(fieldName).equals("datetime") && fieldValue != null) {
-                                underQuery.append(fieldValue.toString().replace(".000Z", "").replace("T", " ")).append(",");
-                            } else if (mapType.get(fieldName).equals("time") && fieldValue != null) {
-                                underQuery.append(fieldValue.toString().replace("Z", "")).append(",");
-                            } else {
-                                underQuery.append(fieldValue).append(",");
-                            }
-                        });
-
-                        underQuery.deleteCharAt(underQuery.length() - 1);
-                        underQuery.append(")");
-                        listUnderQuery.add(String.valueOf(underQuery));
-
-                    }
-
-                    soql.deleteCharAt(soql.length() - 1);
-
-                    String upperQuery = "Insert Into config." + selectedObject + "(" + soql + ") " + "values";
-
-                    Instant start = Instant.now();
-
-                    int insertedData = etlRepository.insertObject(upperQuery, listUnderQuery);
-
-                    Instant end = Instant.now();
-                    Duration interval = Duration.between(start, end);
-
-                    long hours = interval.toHours();
-                    long minutes = interval.toMinutesPart();
-                    long seconds = interval.toSecondsPart();
-
-                    System.out.println("=====================================SalesforceRouterBuilder=====================================");
-                    System.out.println("테이블 : " + selectedObject + ". 삽입된 데이터 수 : " + insertedData + ". 소요시간 : " + hours + "시간 " + minutes + "분 " + seconds + "초");
+//                    boolean isFirst = true;
+//
+//                    for (Object body : messageBodies) {
+//                        Map<String, Object> mapParam = objectMapper.convertValue(body, Map.class);
+//                        mapParam.put("sfid", mapParam.get("Id"));
+//                        mapParam.remove("Id");
+//
+//                        JsonNode rootNode = objectMapper.valueToTree(mapParam);
+//                        StringBuilder underQuery = new StringBuilder("(");
+//
+//                        // soql은 한번만 설정하기 (Insert에 들어갈 필드임)
+//                        if (isFirst) {
+//                            rootNode.fields().forEachRemaining(field -> {
+//                                String fieldName = field.getKey();
+//                                soql.append(fieldName).append(",");
+//                            });
+//                            isFirst = false;
+//                        }
+//
+//                        rootNode.fields().forEachRemaining(field -> {
+//                            String fieldName = field.getKey();
+//                            JsonNode fieldValue = field.getValue();
+//
+//                            if (mapType.get(fieldName).equals("datetime") && fieldValue != null) {
+//                                underQuery.append(fieldValue.toString().replace(".000Z", "").replace("T", " ")).append(",");
+//                            } else if (mapType.get(fieldName).equals("time") && fieldValue != null) {
+//                                underQuery.append(fieldValue.toString().replace("Z", "")).append(",");
+//                            } else {
+//                                underQuery.append(fieldValue).append(",");
+//                            }
+//                        });
+//
+//                        underQuery.deleteCharAt(underQuery.length() - 1);
+//                        underQuery.append(")");
+//                        listUnderQuery.add(String.valueOf(underQuery));
+//
+//                    }
+//
+//                    soql.deleteCharAt(soql.length() - 1);
+//
+//                    String upperQuery = "Insert Into config." + selectedObject + "(" + soql + ") " + "values";
+//
+//                    Instant start = Instant.now();
+//
+//                    int insertedData = etlRepository.insertObject(upperQuery, listUnderQuery);
+//
+//                    Instant end = Instant.now();
+//                    Duration interval = Duration.between(start, end);
+//
+//                    long hours = interval.toHours();
+//                    long minutes = interval.toMinutesPart();
+//                    long seconds = interval.toSecondsPart();
+//
+//                    System.out.println("=====================================SalesforceRouterBuilder=====================================");
+//                    System.out.println("테이블 : " + selectedObject + ". 삽입된 데이터 수 : " + insertedData + ". 소요시간 : " + hours + "시간 " + minutes + "분 " + seconds + "초");
                 });
     }
 }
