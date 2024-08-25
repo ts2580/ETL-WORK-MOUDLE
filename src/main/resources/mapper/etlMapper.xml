@@ -16,5 +16,14 @@
         </foreach>
     </insert>
 
+
+    <delete id="deleteObject">
+        DELETE FROM ${selectedObject}
+        WHERE sfid IN
+        <foreach item="id" collection="listDeleteIds" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
 </mapper>
 
