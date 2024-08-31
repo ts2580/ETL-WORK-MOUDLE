@@ -123,6 +123,59 @@ public class SalesforceRouterBuilder extends RouteBuilder {
                             System.out.println("=====================updated=============================");
 
 
+
+
+                            for (Object body : messageBody) {
+                                System.out.println("body : ");
+                                System.out.println(body);
+
+                                StringBuilder strUpdate = new StringBuilder();
+                                strUpdate.append("UPDATE config." + selectedObject + " SET ");
+
+                                Map<String, Object> mapParam = objectMapper.convertValue(body, Map.class);
+                                mapParam.put("sfid", mapParam.get("Id"));
+                                mapParam.remove("Id");
+
+                                JsonNode rootNode = objectMapper.valueToTree(mapParam);
+                                System.out.println("rootNode :: " + rootNode);
+
+                                rootNode.fields().forEachRemaining(field -> {
+                                    String fieldName = field.getKey();
+                                    JsonNode fieldValue = field.getValue();
+
+                                    strUpdate.append(fieldName).append(" = ");
+
+                                    if (mapType.get(fieldName).equals("datetime") && fieldValue != null) {
+                                        strUpdate.append(fieldValue.toString().replace(".000Z", "").replace("T", " ")).append(",");
+                                    } else if (mapType.get(fieldName).equals("time") && fieldValue != null) {
+                                        strUpdate.append(fieldValue.toString().replace("Z", "")).append(",");
+                                    } else {
+                                        strUpdate.append(fieldValue).append(",");
+                                    }
+                                });
+
+                                strUpdate.deleteCharAt(strUpdate.length() - 1);
+                                strUpdate.append("WHERE sfid = '").append(mapParam.get("sfid")).append("';");
+                                System.out.println("strUpdate : " + strUpdate);
+
+
+                                Instant start = Instant.now();
+                                int updateData = etlRepository.updateObject(strUpdate);
+
+                                Instant end = Instant.now();
+                                Duration interval = Duration.between(start, end);
+
+
+                                long hours = interval.toHours();
+                                long minutes = interval.toMinutesPart();
+                                long seconds = interval.toSecondsPart();
+
+                                System.out.println("=====================================SalesforceRouterBuilder=====================================");
+                                System.out.println("테이블 : " + selectedObject + ". 처리한 데이터 수 : " + updateData + ". 소요시간 : " + hours + "시간 " + minutes + "분 " + seconds + "초");
+
+                            }
+
+
                         }
                         // Delete 한 PushTopic
                         else if (key.equals("deleted")) {

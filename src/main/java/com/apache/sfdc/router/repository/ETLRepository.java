@@ -15,4 +15,6 @@ public interface ETLRepository {
     void setTable(String string);
 
     int deleteObject(@Param("selectedObject")String selectedObject, @Param("listDeleteIds") List<String> listDeleteIds);
+
+    int updateObject(@Param("strUpdate")StringBuilder strUpdate);
 }
