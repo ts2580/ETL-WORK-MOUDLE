@@ -23,6 +23,12 @@ spring:
         url: jdbc:mariadb://175.193.22.60:3307/config?characterEncoding=UTF-8
         username: root
         password: dbfltjdwls
+    data:
+        redis:
+            host: ec2-3-215-130-78.compute-1.amazonaws.com
+            port: 30739
+            password: pd85af37520ca2acf6b4497105629ca7a8dd471b212efcf809401e2ad17e568c6
+
 
 mybatis:
     mapper-locations: classpath:mapper/**/*.xml

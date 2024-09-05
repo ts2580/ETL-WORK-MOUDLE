@@ -38,72 +38,180 @@ public class SalesforceRouterBuilder extends RouteBuilder {
                     ObjectMapper objectMapper = new ObjectMapper();
 
 
-                    // List<Message>로 받으면 에러남.. 타입 변환해서 받자
+                    // List<Object>가 아닌 Message 로 받으면 에러남.. 타입 변환해서 받자
                     Map<String, List<Object>> messageBodies = exchange.getIn().getBody(Map.class);
 
                     System.out.println(objectMapper.writeValueAsString(messageBodies));
 
                     List<String> listUnderQuery = new ArrayList<>();
                     StringBuilder soql = new StringBuilder();
-                    
+
+                    List<Object> messageBody;
+
                     // todo CUD 쿼리 만들기
-                    
-                    // soql을 한번만 설정해주기 위한 변수
-//                    boolean isFirst = true;
-//
-//                    for (Object body : messageBodies) {
-//                        Map<String, Object> mapParam = objectMapper.convertValue(body, Map.class);
-//                        mapParam.put("sfid", mapParam.get("Id"));
-//                        mapParam.remove("Id");
-//
-//                        JsonNode rootNode = objectMapper.valueToTree(mapParam);
-//                        StringBuilder underQuery = new StringBuilder("(");
-//
-//                        // soql은 한번만 설정하기 (Insert에 들어갈 필드임)
-//                        if (isFirst) {
-//                            rootNode.fields().forEachRemaining(field -> {
-//                                String fieldName = field.getKey();
-//                                soql.append(fieldName).append(",");
-//                            });
-//                            isFirst = false;
-//                        }
-//
-//                        rootNode.fields().forEachRemaining(field -> {
-//                            String fieldName = field.getKey();
-//                            JsonNode fieldValue = field.getValue();
-//
-//                            if (mapType.get(fieldName).equals("datetime") && fieldValue != null) {
-//                                underQuery.append(fieldValue.toString().replace(".000Z", "").replace("T", " ")).append(",");
-//                            } else if (mapType.get(fieldName).equals("time") && fieldValue != null) {
-//                                underQuery.append(fieldValue.toString().replace("Z", "")).append(",");
-//                            } else {
-//                                underQuery.append(fieldValue).append(",");
-//                            }
-//                        });
-//
-//                        underQuery.deleteCharAt(underQuery.length() - 1);
-//                        underQuery.append(")");
-//                        listUnderQuery.add(String.valueOf(underQuery));
-//
-//                    }
-//
-//                    soql.deleteCharAt(soql.length() - 1);
-//
-//                    String upperQuery = "Insert Into config." + selectedObject + "(" + soql + ") " + "values";
-//
-//                    Instant start = Instant.now();
-//
-//                    int insertedData = etlRepository.insertObject(upperQuery, listUnderQuery);
-//
-//                    Instant end = Instant.now();
-//                    Duration interval = Duration.between(start, end);
-//
-//                    long hours = interval.toHours();
-//                    long minutes = interval.toMinutesPart();
-//                    long seconds = interval.toSecondsPart();
-//
-//                    System.out.println("=====================================SalesforceRouterBuilder=====================================");
-//                    System.out.println("테이블 : " + selectedObject + ". 삽입된 데이터 수 : " + insertedData + ". 소요시간 : " + hours + "시간 " + minutes + "분 " + seconds + "초");
+                    for (String key : messageBodies.keySet()) {
+
+                        messageBody = messageBodies.get(key);
+
+
+                        // Insert 한 PushTopic
+                        if (key.equals("created")) {
+                            System.out.println("=====================created=============================");
+
+                            // soql을 한번만 설정해주기 위한 변수
+                            boolean isFirst = true;
+
+                            for (Object body : messageBody) {
+                                Map<String, Object> mapParam = objectMapper.convertValue(body, Map.class);
+                                mapParam.put("sfid", mapParam.get("Id"));
+                                mapParam.remove("Id");
+
+                                JsonNode rootNode = objectMapper.valueToTree(mapParam);
+                                StringBuilder underQuery = new StringBuilder("(");
+
+                                // soql은 한번만 설정하기 (Insert에 들어갈 필드임)
+                                if (isFirst) {
+                                    rootNode.fields().forEachRemaining(field -> {
+                                        String fieldName = field.getKey();
+                                        soql.append(fieldName).append(",");
+                                    });
+                                    isFirst = false;
+                                }
+
+                                rootNode.fields().forEachRemaining(field -> {
+                                    String fieldName = field.getKey();
+                                    JsonNode fieldValue = field.getValue();
+
+                                    if (mapType.get(fieldName).equals("datetime") && fieldValue != null) {
+                                        underQuery.append(fieldValue.toString().replace(".000Z", "").replace("T", " ")).append(",");
+                                    } else if (mapType.get(fieldName).equals("time") && fieldValue != null) {
+                                        underQuery.append(fieldValue.toString().replace("Z", "")).append(",");
+                                    } else {
+                                        underQuery.append(fieldValue).append(",");
+                                    }
+                                });
+
+                                underQuery.deleteCharAt(underQuery.length() - 1);
+                                underQuery.append(")");
+                                listUnderQuery.add(String.valueOf(underQuery));
+
+                            }
+
+                            soql.deleteCharAt(soql.length() - 1);
+
+                            String upperQuery = "Insert Into config." + selectedObject + "(" + soql + ") " + "values";
+
+
+                            Instant start = Instant.now();
+
+                            int insertedData = etlRepository.insertObject(upperQuery, listUnderQuery);
+
+                            Instant end = Instant.now();
+                            Duration interval = Duration.between(start, end);
+
+
+                            long hours = interval.toHours();
+                            long minutes = interval.toMinutesPart();
+                            long seconds = interval.toSecondsPart();
+
+                            System.out.println("=====================================SalesforceRouterBuilder=====================================");
+                            System.out.println("테이블 : " + selectedObject + ". 처리한 데이터 수 : " + insertedData + ". 소요시간 : " + hours + "시간 " + minutes + "분 " + seconds + "초");
+
+                        }
+                        // Update 한 PushTopic
+                        else if (key.equals("updated")) {
+                            System.out.println("=====================updated=============================");
+
+
+
+
+                            for (Object body : messageBody) {
+                                System.out.println("body : ");
+                                System.out.println(body);
+
+                                StringBuilder strUpdate = new StringBuilder();
+                                strUpdate.append("UPDATE config." + selectedObject + " SET ");
+
+                                Map<String, Object> mapParam = objectMapper.convertValue(body, Map.class);
+                                mapParam.put("sfid", mapParam.get("Id"));
+                                mapParam.remove("Id");
+
+                                JsonNode rootNode = objectMapper.valueToTree(mapParam);
+                                System.out.println("rootNode :: " + rootNode);
+
+                                rootNode.fields().forEachRemaining(field -> {
+                                    String fieldName = field.getKey();
+                                    JsonNode fieldValue = field.getValue();
+
+                                    strUpdate.append(fieldName).append(" = ");
+
+                                    if (mapType.get(fieldName).equals("datetime") && fieldValue != null) {
+                                        strUpdate.append(fieldValue.toString().replace(".000Z", "").replace("T", " ")).append(",");
+                                    } else if (mapType.get(fieldName).equals("time") && fieldValue != null) {
+                                        strUpdate.append(fieldValue.toString().replace("Z", "")).append(",");
+                                    } else {
+                                        strUpdate.append(fieldValue).append(",");
+                                    }
+                                });
+
+                                strUpdate.deleteCharAt(strUpdate.length() - 1);
+                                strUpdate.append("WHERE sfid = '").append(mapParam.get("sfid")).append("';");
+                                System.out.println("strUpdate : " + strUpdate);
+
+
+                                Instant start = Instant.now();
+                                int updateData = etlRepository.updateObject(strUpdate);
+
+                                Instant end = Instant.now();
+                                Duration interval = Duration.between(start, end);
+
+
+                                long hours = interval.toHours();
+                                long minutes = interval.toMinutesPart();
+                                long seconds = interval.toSecondsPart();
+
+                                System.out.println("=====================================SalesforceRouterBuilder=====================================");
+                                System.out.println("테이블 : " + selectedObject + ". 처리한 데이터 수 : " + updateData + ". 소요시간 : " + hours + "시간 " + minutes + "분 " + seconds + "초");
+
+                            }
+
+
+                        }
+                        // Delete 한 PushTopic
+                        else if (key.equals("deleted")) {
+                            System.out.println("=====================deleted=============================");
+                            List<String> listDeleteIds = new ArrayList<>();
+
+
+                            for (Object body : messageBody) {
+                                Map<String, Object> mapParam = objectMapper.convertValue(body, Map.class);
+
+                                JsonNode rootNode = objectMapper.valueToTree(mapParam);
+                                rootNode.fields().forEachRemaining(field -> {
+                                    listDeleteIds.add(String.valueOf(field.getValue()));
+                                });
+                            }
+
+                            System.out.println("listDeleteIds ==> " + listDeleteIds);
+
+                            Instant start = Instant.now();
+                            int deletedData = etlRepository.deleteObject("config." + selectedObject, listDeleteIds);
+
+                            Instant end = Instant.now();
+                            Duration interval = Duration.between(start, end);
+
+
+                            long hours = interval.toHours();
+                            long minutes = interval.toMinutesPart();
+                            long seconds = interval.toSecondsPart();
+
+                            System.out.println("=====================================SalesforceRouterBuilder=====================================");
+                            System.out.println("테이블 : " + selectedObject + ". 처리한 데이터 수 : " + deletedData + ". 소요시간 : " + hours + "시간 " + minutes + "분 " + seconds + "초");
+
+                        }
+                    }
+
+
                 });
     }
 }
