@@ -2,6 +2,7 @@ package com.apache.sfdc.router.service;
 
 import com.apache.sfdc.common.SalesforceOAuth;
 import com.apache.sfdc.common.SalesforceRouterBuilder;
+import com.apache.sfdc.common.SalesforceRouterBuilderCDC;
 import com.apache.sfdc.router.dto.FieldDefinition;
 import com.apache.sfdc.router.repository.ETLRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -64,6 +65,8 @@ public class RouterServiceImpl implements RouterService {
         // soql로 받아온 값 변환용 맵
         Map<String, String> mapType = new HashMap<>();
 
+        String label;
+        
         try (Response response = client.newCall(request).execute()) {
             String responseBody = Objects.requireNonNull(response.body()).string();
 
@@ -72,58 +75,59 @@ public class RouterServiceImpl implements RouterService {
 
             JsonNode fields = rootNode.get("fields"); // FieldDefinition 의 List
 
-            listDef = objectMapper.convertValue(fields, new TypeReference<List<FieldDefinition>>() {
-            });
+            listDef = objectMapper.convertValue(fields, new TypeReference<List<FieldDefinition>>() {});
 
             ddl.append("CREATE OR REPLACE table config.").append(selectedObject).append("(");
 
             for (FieldDefinition obj : listDef) {
                 mapType.put(obj.name, obj.type);
 
+                // 작은 따옴표는 백틱으로 이스케이프
+                label = obj.label.replace("'","`");
 
                 // salesforce에서 만드는 모든 type들은 하단의 case로 모인다. 특정 Object Type (Address 나 FirstName 생략)
                 switch (obj.type) {
                     case "id" -> {
-                        ddl.append("sfid VARCHAR(18) primary key not null comment '").append(obj.label).append("',");
+                        ddl.append("sfid VARCHAR(18) primary key not null comment '").append(label).append("',");
                     }
                     case "textarea" -> {
                         if (obj.length > 4000) {
-                            ddl.append(obj.name).append(" TEXT comment '").append(obj.label).append("',");
+                            ddl.append(obj.name).append(" TEXT comment '").append(label).append("',");
                         } else {
-                            ddl.append(obj.name).append(" VARCHAR(").append(obj.length).append(") comment '").append(obj.label).append("',");
+                            ddl.append(obj.name).append(" VARCHAR(").append(obj.length).append(") comment '").append(label).append("',");
                         }
                         listFields.add(obj.name);
                     }
                     case "reference" -> {
-                        ddl.append(obj.name).append(" VARCHAR(18) comment '").append(obj.label).append("',");
+                        ddl.append(obj.name).append(" VARCHAR(18) comment '").append(label).append("',");
                         listFields.add(obj.name);
                     }
                     case "string", "picklist", "multipicklist", "phone", "url" -> {
-                        ddl.append(obj.name).append(" VARCHAR(").append(obj.length).append(") comment '").append(obj.label).append("',");
+                        ddl.append(obj.name).append(" VARCHAR(").append(obj.length).append(") comment '").append(label).append("',");
                         listFields.add(obj.name);
                     }
                     case "boolean" -> {
-                        ddl.append(obj.name).append(" boolean comment '").append(obj.label).append("',");
+                        ddl.append(obj.name).append(" boolean comment '").append(label).append("',");
                         listFields.add(obj.name);
                     }
                     case "datetime" -> {
-                        ddl.append(obj.name).append(" TIMESTAMP comment '").append(obj.label).append("',");
+                        ddl.append(obj.name).append(" TIMESTAMP comment '").append(label).append("',");
                         listFields.add(obj.name);
                     }
                     case "date" -> {
-                        ddl.append(obj.name).append(" date comment '").append(obj.label).append("',");
+                        ddl.append(obj.name).append(" date comment '").append(label).append("',");
                         listFields.add(obj.name);
                     }
                     case "time" -> {
-                        ddl.append(obj.name).append(" time comment '").append(obj.label).append("',");
+                        ddl.append(obj.name).append(" time comment '").append(label).append("',");
                         listFields.add(obj.name);
                     }
                     case "double", "percent", "currency" -> {
-                        ddl.append(obj.name).append(" double precision comment '").append(obj.label).append("',");
+                        ddl.append(obj.name).append(" double precision comment '").append(label).append("',");
                         listFields.add(obj.name);
                     }
                     case "int" -> {
-                        ddl.append(obj.name).append(" int comment '").append(obj.label).append("',");
+                        ddl.append(obj.name).append(" int comment '").append(label).append("',");
                         listFields.add(obj.name);
                     }
                 }
@@ -171,70 +175,73 @@ public class RouterServiceImpl implements RouterService {
             rootNode = objectMapper.readTree(Objects.requireNonNull(response.body()).string());
             // 레코드의 Array
             JsonNode records = rootNode.get("records");
-            String upperQuery = "Insert Into config." + selectedObject + "(sfid, " + soql + ") " + "values";
 
-            List<String> listUnderQuery = new ArrayList<>();
-            StringBuilder underQuery;
-            // JSONNode가 List인게 확실하면 for문 사용가능
-            for (JsonNode record : records) {
-                underQuery = new StringBuilder();
-                underQuery.append("( ").append(record.get("Id")).append(",");
+            if(!records.isEmpty()){
+                String upperQuery = "Insert Into config." + selectedObject + "(sfid, " + soql + ") " + "values";
 
-                for (String field : listFields) {
-                    if(mapType.get(field).equals("datetime")){
-//                        if (record.get(field) != null && record.get(field).asText() != null) {
-//                            System.out.println("======================================");
-//                            System.out.println(record.get(field));
-//                            // DateTimeFormatter를 사용하여 원본 문자열을 ZonedDateTime 객체로 변환
-//                            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
-//                            ZonedDateTime zonedDateTime = ZonedDateTime.parse(record.get(field).asText(), formatter);
-//
-//                            // MariaDB 형식의 문자열로 변환
-//                            DateTimeFormatter mariadbFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-//                            String mariadbDatetimeStr = zonedDateTime.withZoneSameInstant(ZoneOffset.UTC).format(mariadbFormatter);
-//
-//                            underQuery.append(mariadbDatetimeStr).append(",");
-//                        }
+                List<String> listUnderQuery = new ArrayList<>();
+                StringBuilder underQuery;
+                // JSONNode가 List인게 확실하면 for문 사용가능
+                for (JsonNode record : records) {
+                    underQuery = new StringBuilder();
+                    underQuery.append("( ").append(record.get("Id")).append(",");
 
+                    for (String field : listFields) {
                         if(mapType.get(field).equals("datetime")){
-                            underQuery.append(record.get(field).toString().replace(".000+0000","").replace("T"," ")).append(",");
+                            //  if (record.get(field) != null && record.get(field).asText() != null) {
+                            //      System.out.println("======================================");
+                            //      System.out.println(record.get(field));
+                            //      // DateTimeFormatter를 사용하여 원본 문자열을 ZonedDateTime 객체로 변환
+                            //      DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+                            //      ZonedDateTime zonedDateTime = ZonedDateTime.parse(record.get(field).asText(), formatter);
+                            //
+                            //      // MariaDB 형식의 문자열로 변환
+                            //      DateTimeFormatter mariadbFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                            //      String mariadbDatetimeStr = zonedDateTime.withZoneSameInstant(ZoneOffset.UTC).format(mariadbFormatter);
+                            //
+                            //      underQuery.append(mariadbDatetimeStr).append(",");
+                            //  }
+
+                            if(mapType.get(field).equals("datetime")){
+                                underQuery.append(record.get(field).toString().replace(".000+0000","").replace("T"," ")).append(",");
+                            }else if(mapType.get(field).equals("time")){
+                                underQuery.append(record.get(field).toString().replace("Z","")).append(",");
+                            }else{
+                                underQuery.append(record.get(field)).append(",");
+                            }
                         }else if(mapType.get(field).equals("time")){
+                            // todo Time 필드 바꾸기
                             underQuery.append(record.get(field).toString().replace("Z","")).append(",");
                         }else{
                             underQuery.append(record.get(field)).append(",");
                         }
-                    }else if(mapType.get(field).equals("time")){
-                        // todo Time 필드 바꾸기
-                        underQuery.append(record.get(field).toString().replace("Z","")).append(",");
-                    }else{
-                        underQuery.append(record.get(field)).append(",");
                     }
+
+                    underQuery.deleteCharAt(underQuery.length() - 1);
+                    underQuery.append(")");
+                    listUnderQuery.add(String.valueOf(underQuery));
                 }
 
-                underQuery.deleteCharAt(underQuery.length() - 1);
-                underQuery.append(")");
-                listUnderQuery.add(String.valueOf(underQuery));
+                // 시간 체크
+                Instant start = Instant.now();
+
+                // int insertedData = etlRepository.insertObject(upperQuery, listUnderQuery);
+
+                Instant end = Instant.now();
+                Duration interval = Duration.between(start, end);
+
+                long hours = interval.toHours();
+                long minutes = interval.toMinutesPart();
+                long seconds = interval.toSecondsPart();
+
+                // System.out.println("테이블 : " + selectedObject + ". 삽입된 데이터 수 : " + insertedData + ". 소요시간 : " + hours + "시간 " + minutes + "분 " + seconds + "초");
+            }else{
+                System.out.println("테이블에 데이터 없음");
             }
-
-            // 시간 체크
-            Instant start = Instant.now();
-
-            int insertedData = etlRepository.insertObject(upperQuery, listUnderQuery);
-
-            Instant end = Instant.now();
-            Duration interval = Duration.between(start, end);
-
-            long hours = interval.toHours();
-            long minutes = interval.toMinutesPart();
-            long seconds = interval.toSecondsPart();
-
-            System.out.println("테이블 : " + selectedObject + ". 삽입된 데이터 수 : " + insertedData + ". 소요시간 : " + hours + "시간 " + minutes + "분 " + seconds + "초");
-
 
             } catch (IOException e) {
             throw new RuntimeException(e);
         }
-
 
         return returnMap;
     }
@@ -309,4 +316,49 @@ public class RouterServiceImpl implements RouterService {
             myCamelContext.close();
         }
     }
+
+    @Override
+    public void subscribeCDC(Map<String, String> mapProperty) throws Exception {
+
+        String selectedObject = mapProperty.get("selectedObject");
+
+        // access token 을 직접 넣을수가 없군
+        SalesforceComponent sfEcology = new SalesforceComponent();
+        sfEcology.setLoginUrl(mapProperty.get("loginUrl"));
+        sfEcology.setClientId(mapProperty.get("client_id"));
+        sfEcology.setClientSecret(mapProperty.get("client_secret"));
+        sfEcology.setUserName(mapProperty.get("username"));
+        sfEcology.setPassword(mapProperty.get("password"));
+        sfEcology.setPackages("com.apache.sfdc.router.dto");
+
+        RouteBuilder routeBuilder = new SalesforceRouterBuilderCDC(selectedObject, etlRepository);
+
+        CamelContext myCamelContext = new DefaultCamelContext();
+        myCamelContext.addRoutes(routeBuilder);
+        myCamelContext.addComponent("sf", sfEcology);
+
+        try{
+            myCamelContext.start();
+        }catch (Exception e){
+            System.out.println(e.getMessage());
+            myCamelContext.close();
+        }
+
+
+    }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

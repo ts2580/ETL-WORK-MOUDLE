@@ -26,7 +26,7 @@ spring:
     data:
         redis:
             host: ec2-3-215-130-78.compute-1.amazonaws.com
-            port: 30739
+            port: 30740
             password: pd85af37520ca2acf6b4497105629ca7a8dd471b212efcf809401e2ad17e568c6
 
 
