@@ -1,9 +1,7 @@
-package com.apache.sfdc.router.controller;
+package com.apache.sfdc.streaming.controller;
 
 import com.apache.sfdc.common.SalesforceOAuth;
-import com.apache.sfdc.router.service.RouterService;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.apache.sfdc.streaming.service.StreamingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -12,12 +10,16 @@ import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("apache")
-public class RouterController {
-    private final RouterService routerService;
+public class StreamingController {
+    private final StreamingService routerService;
 
-    @PostMapping("/pushtopic")
+    @PostMapping("/streaming")
     public String setPushTopic(@RequestBody String strJson) throws Exception {
+
+        // Streaming API로는 PushTopic events, generic events, platform events, Change Data Capture events 다 받음
+        // PushTopic event는 streaming으로 받자.
+        // Bayeux 프로토콜과 CometD 클라이언트 기반.
+
         ObjectMapper objectMapper = new ObjectMapper();
 
         // strJson을 Map으로 변환 , mapProperty에는 아파치 카멜로 salesforce component 접속정보
@@ -37,4 +39,7 @@ public class RouterController {
 
         return "모든 시퀸스 성공";
     }
+
+
+
 }

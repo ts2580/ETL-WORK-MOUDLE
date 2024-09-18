@@ -1,10 +1,8 @@
-package com.apache.sfdc.router.service;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
+package com.apache.sfdc.streaming.service;
 
 import java.util.Map;
 
-public interface RouterService {
+public interface StreamingService {
 
     Map<String, Object> setTable(Map<String, String> mapProperty, String token);
 

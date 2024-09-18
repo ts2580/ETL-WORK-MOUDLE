@@ -28,6 +28,9 @@ public class RedisController {
 
         String result = redisService.getValue(key);
 
+        System.out.println(key);
+        System.out.println(result);
+
         return result;
     }
 
