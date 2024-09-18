@@ -1,19 +1,15 @@
-package com.apache.sfdc.router.service;
+package com.apache.sfdc.streaming.service;
 
-import com.apache.sfdc.common.SalesforceOAuth;
 import com.apache.sfdc.common.SalesforceRouterBuilder;
 import com.apache.sfdc.common.SalesforceRouterBuilderCDC;
-import com.apache.sfdc.router.dto.FieldDefinition;
-import com.apache.sfdc.router.repository.ETLRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
+import com.apache.sfdc.streaming.dto.FieldDefinition;
+import com.apache.sfdc.streaming.repository.StreamingRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
 import okhttp3.*;
 import org.apache.camel.CamelContext;
-import org.apache.camel.Message;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.component.salesforce.SalesforceComponent;
 import org.apache.camel.impl.DefaultCamelContext;
@@ -24,15 +20,12 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
 @RequiredArgsConstructor
-public class RouterServiceImpl implements RouterService {
-    private final ETLRepository etlRepository;
+public class StreamingServiceImpl implements StreamingService {
+    private final StreamingRepository streamingRepository;
 
     @Override
     public Map<String, Object> setTable(Map<String, String> mapProperty, String token) {
@@ -143,7 +136,7 @@ public class RouterServiceImpl implements RouterService {
         returnMap.put("mapType", mapType);
 
         // 테이블 생성
-        etlRepository.setTable(ddl.toString());
+        streamingRepository.setTable(ddl.toString());
 
         // 생성 후 바로 데이터 부어주기
         StringBuilder soql = new StringBuilder();
@@ -225,7 +218,7 @@ public class RouterServiceImpl implements RouterService {
                 // 시간 체크
                 Instant start = Instant.now();
 
-                // int insertedData = etlRepository.insertObject(upperQuery, listUnderQuery);
+                int insertedData = streamingRepository.insertObject(upperQuery, listUnderQuery);
 
                 Instant end = Instant.now();
                 Duration interval = Duration.between(start, end);
@@ -234,7 +227,7 @@ public class RouterServiceImpl implements RouterService {
                 long minutes = interval.toMinutesPart();
                 long seconds = interval.toSecondsPart();
 
-                // System.out.println("테이블 : " + selectedObject + ". 삽입된 데이터 수 : " + insertedData + ". 소요시간 : " + hours + "시간 " + minutes + "분 " + seconds + "초");
+                System.out.println("테이블 : " + selectedObject + ". 삽입된 데이터 수 : " + insertedData + ". 소요시간 : " + hours + "시간 " + minutes + "분 " + seconds + "초");
             }else{
                 System.out.println("테이블에 데이터 없음");
             }
@@ -303,7 +296,7 @@ public class RouterServiceImpl implements RouterService {
         sfEcology.setPassword(mapProperty.get("password"));
         sfEcology.setPackages("com.apache.sfdc.router.dto");
 
-        RouteBuilder routeBuilder = new SalesforceRouterBuilder(selectedObject, mapType, etlRepository);
+        RouteBuilder routeBuilder = new SalesforceRouterBuilder(selectedObject, mapType, streamingRepository);
 
         CamelContext myCamelContext = new DefaultCamelContext();
         myCamelContext.addRoutes(routeBuilder);
@@ -315,36 +308,6 @@ public class RouterServiceImpl implements RouterService {
             System.out.println(e.getMessage());
             myCamelContext.close();
         }
-    }
-
-    @Override
-    public void subscribeCDC(Map<String, String> mapProperty) throws Exception {
-
-        String selectedObject = mapProperty.get("selectedObject");
-
-        // access token 을 직접 넣을수가 없군
-        SalesforceComponent sfEcology = new SalesforceComponent();
-        sfEcology.setLoginUrl(mapProperty.get("loginUrl"));
-        sfEcology.setClientId(mapProperty.get("client_id"));
-        sfEcology.setClientSecret(mapProperty.get("client_secret"));
-        sfEcology.setUserName(mapProperty.get("username"));
-        sfEcology.setPassword(mapProperty.get("password"));
-        sfEcology.setPackages("com.apache.sfdc.router.dto");
-
-        RouteBuilder routeBuilder = new SalesforceRouterBuilderCDC(selectedObject, etlRepository);
-
-        CamelContext myCamelContext = new DefaultCamelContext();
-        myCamelContext.addRoutes(routeBuilder);
-        myCamelContext.addComponent("sf", sfEcology);
-
-        try{
-            myCamelContext.start();
-        }catch (Exception e){
-            System.out.println(e.getMessage());
-            myCamelContext.close();
-        }
-
-
     }
 }
 

@@ -7,7 +7,7 @@ camel:
             client-id: 3MVG9q4K8Dm94dAwF6D70zsfWDZO2vEz0CCf0bQtywOlbgdghIYL0JLpyG2HP5bvUkV5Lm1B.4bZE0z6pkVu3
             client-secret: A532570413C1AB3952E7CEDEBDBFF0735651F2F8011B093C8CE03A646FF9AD0A
             user-name: admin@ecologysyncmanagementco.kr.dev
-            password: qwer1234!!NLIi077LCt55mBjVM5AJKyTH
+            password: qwer1234!t9IOoeW2u0GeELmPoVh4BOmh
             login-url: https://login.salesforce.com
 
         salesforce-sj:
@@ -25,9 +25,9 @@ spring:
         password: dbfltjdwls
     data:
         redis:
-            host: ec2-3-215-130-78.compute-1.amazonaws.com
-            port: 30740
-            password: pd85af37520ca2acf6b4497105629ca7a8dd471b212efcf809401e2ad17e568c6
+            host: www.hsj-nas.kr
+            port: 6379
+            password: yuri
 
 
 mybatis:

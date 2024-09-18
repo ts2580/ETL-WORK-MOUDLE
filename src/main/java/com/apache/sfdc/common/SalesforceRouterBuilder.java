@@ -1,11 +1,8 @@
 package com.apache.sfdc.common;
 
-import com.apache.sfdc.router.repository.ETLRepository;
+import com.apache.sfdc.streaming.repository.StreamingRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.camel.AggregationStrategy;
-import org.apache.camel.Exchange;
-import org.apache.camel.Message;
 import org.apache.camel.builder.RouteBuilder;
 
 import java.time.Duration;
@@ -19,11 +16,12 @@ import java.util.Map;
 public class SalesforceRouterBuilder extends RouteBuilder {
     private final String selectedObject;
     private final Map<String, Object> mapType;
-    private final ETLRepository etlRepository;
-    public SalesforceRouterBuilder(String selectedObject, Map<String, Object> mapType, ETLRepository etlRepository) {
+    private final StreamingRepository streamingRepository;
+
+    public SalesforceRouterBuilder(String selectedObject, Map<String, Object> mapType, StreamingRepository streamingRepository) {
         this.selectedObject = selectedObject;
         this.mapType = mapType;
-        this.etlRepository = etlRepository;
+        this.streamingRepository = streamingRepository;
     }
 
     @Override
@@ -103,7 +101,7 @@ public class SalesforceRouterBuilder extends RouteBuilder {
 
                             Instant start = Instant.now();
 
-                            int insertedData = etlRepository.insertObject(upperQuery, listUnderQuery);
+                            int insertedData = streamingRepository.insertObject(upperQuery, listUnderQuery);
 
                             Instant end = Instant.now();
                             Duration interval = Duration.between(start, end);
@@ -159,7 +157,7 @@ public class SalesforceRouterBuilder extends RouteBuilder {
 
 
                                 Instant start = Instant.now();
-                                int updateData = etlRepository.updateObject(strUpdate);
+                                int updateData = streamingRepository.updateObject(strUpdate);
 
                                 Instant end = Instant.now();
                                 Duration interval = Duration.between(start, end);
@@ -194,7 +192,7 @@ public class SalesforceRouterBuilder extends RouteBuilder {
                             System.out.println("listDeleteIds ==> " + listDeleteIds);
 
                             Instant start = Instant.now();
-                            int deletedData = etlRepository.deleteObject("config." + selectedObject, listDeleteIds);
+                            int deletedData = streamingRepository.deleteObject("config." + selectedObject, listDeleteIds);
 
                             Instant end = Instant.now();
                             Duration interval = Duration.between(start, end);

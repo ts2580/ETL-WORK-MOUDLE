@@ -21,7 +21,7 @@ public class SalesforceOAuth {
     private static final String CLIENT_ID = "3MVG9q4K8Dm94dAwF6D70zsfWDZO2vEz0CCf0bQtywOlbgdghIYL0JLpyG2HP5bvUkV5Lm1B.4bZE0z6pkVu3";
     private static final String CLIENT_SECRET = "A532570413C1AB3952E7CEDEBDBFF0735651F2F8011B093C8CE03A646FF9AD0A";
     private static final String USERNAME = "admin@ecologysyncmanagementco.kr.dev";
-    private static final String PASSWORD = "qwer1234!!NLIi077LCt55mBjVM5AJKyTH";*/
+    private static final String PASSWORD = "qwer1234!t9IOoeW2u0GeELmPoVh4BOmh";*/
 
     private static final String LOGIN_URL = "https://test.salesforce.com/services/oauth2/token";
     private static final String CLIENT_ID = "3MVG9mmadmkxIGpIe25ihMIw1sIPgl6JRWoowiuDNyE8CfVtO8C05ABbpfmuQlnqz.4eA56e_fuDZF6hjXLNk";

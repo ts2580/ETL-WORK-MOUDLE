@@ -47,7 +47,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
         // LettuceConnectionFactory : RedisConnectionFactory 인터페이스를 구현한 클래스. 그래서 리턴값도 RedisConnectionFactory
         //                            내장 되어 있는 Lettuce 라이브러리를 사용하여 Redis 커넥션을 생성하고 관리하는데 사용
         
-        return new LettuceConnectionFactory(redisStandaloneConfiguration, clientConfig);
+        return new LettuceConnectionFactory(redisStandaloneConfiguration);
     }
 
     /**

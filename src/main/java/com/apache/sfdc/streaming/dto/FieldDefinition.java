@@ -1,4 +1,4 @@
-package com.apache.sfdc.router.dto;
+package com.apache.sfdc.streaming.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
