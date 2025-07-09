@@ -25,8 +25,8 @@ public class StreamingController {
         // strJson을 Map으로 변환 , mapProperty에는 아파치 카멜로 salesforce component 접속정보
         Map<String, String> mapProperty = objectMapper.readValue(strJson, Map.class);
 
-        // 토큰 생성
-        String token = SalesforceOAuth.getAccessToken(mapProperty);
+        // 받아온 토큰
+        String token = mapProperty.get("accessToken");
 
         // 테이블 생성 후 데이터 넣기
         Map<String, Object> mapReturn = routerService.setTable(mapProperty, token);
