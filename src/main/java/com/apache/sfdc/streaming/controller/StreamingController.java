@@ -26,7 +26,7 @@ public class StreamingController {
         Map<String, String> mapProperty = objectMapper.readValue(strJson, Map.class);
 
         // 토큰 생성
-        String token = SalesforceOAuth.getAccessToken(mapProperty);
+        String token = mapProperty.get("accessToken");
 
         // 테이블 생성 후 데이터 넣기
         Map<String, Object> mapReturn = routerService.setTable(mapProperty, token);

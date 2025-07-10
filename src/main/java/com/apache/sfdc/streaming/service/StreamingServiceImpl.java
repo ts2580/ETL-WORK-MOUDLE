@@ -13,6 +13,7 @@ import org.apache.camel.CamelContext;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.component.salesforce.SalesforceComponent;
 import org.apache.camel.impl.DefaultCamelContext;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -27,10 +28,24 @@ import java.util.*;
 public class StreamingServiceImpl implements StreamingService {
     private final StreamingRepository streamingRepository;
 
+    @Value("${camel.component.salesforce.instance-url}")
+    private String instanceUrl;
+
+    @Value("${camel.component.salesforce.api-version}")
+    private String apiVersion;
+
+    @Value("${camel.component.salesforce.login-url}")
+    private String loginUrl;
+
+    @Value("${camel.component.salesforce.client-id}")
+    private String clientId;
+
+    @Value("${camel.component.salesforce.client-secret}")
+    private String clientSecret;
+
     @Override
     public Map<String, Object> setTable(Map<String, String> mapProperty, String token) {
         String selectedObject = mapProperty.get("selectedObject"); // 체크박스로 선택한 Object
-        String instanceUrl = mapProperty.get("instanceUrl");
 
         Map<String, Object> returnMap = new HashMap<>(); // 리턴에 담을거 => Type, Query
 
@@ -44,7 +59,7 @@ public class StreamingServiceImpl implements StreamingService {
         JsonNode rootNode;
 
         Request request = new Request.Builder()
-                .url(instanceUrl + "/services/data/v61.0/sobjects/" + selectedObject + "/describe")
+                .url(instanceUrl + "/services/data/v"+apiVersion+"/sobjects/" + selectedObject + "/describe")
                 .addHeader("Authorization", "Bearer " + token)
                 .addHeader("Content-Type", "application/json")
                 .build();
@@ -158,7 +173,7 @@ public class StreamingServiceImpl implements StreamingService {
         String query = "SELECT Id, " + soql + " FROM " + selectedObject;
 
         request = new Request.Builder()
-                .url(instanceUrl + "/services/data/v61.0/query/?q=" + URLEncoder.encode(query, StandardCharsets.UTF_8))
+                .url(instanceUrl + "/services/data/v"+apiVersion+"/query/?q=" + URLEncoder.encode(query, StandardCharsets.UTF_8))
                 .addHeader("Authorization", "Bearer " + token)
                 .addHeader("Content-Type", "application/json")
                 .build();
@@ -242,12 +257,11 @@ public class StreamingServiceImpl implements StreamingService {
     @Override
     public String setPushTopic(Map<String, String> mapProperty, Map<String, Object> mapReturn, String token) throws Exception {
         String selectedObject = mapProperty.get("selectedObject");
-        String instanceUrl = mapProperty.get("instanceUrl");
         // 푸시토픽 생성하기
         Map<String, Object> pushTopic = new HashMap<>();
         pushTopic.put("Name", selectedObject);
         pushTopic.put("Query", "SELECT Id, " + String.valueOf(mapReturn.get("soqlForPushTopic")) + " FROM "  + selectedObject);
-        pushTopic.put("ApiVersion", 61.0);
+        pushTopic.put("ApiVersion", apiVersion);
         pushTopic.put("NotifyForOperationCreate", true);
         pushTopic.put("NotifyForOperationUpdate", true);
         pushTopic.put("NotifyForOperationUndelete", true);
@@ -262,7 +276,7 @@ public class StreamingServiceImpl implements StreamingService {
         RequestBody body = RequestBody.create(json, MediaType.get("application/json; charset=utf-8"));
 
         Request request = new Request.Builder()
-                .url(instanceUrl + "/services/data/v61.0/sobjects/PushTopic")
+                .url(instanceUrl + "/services/data/v"+apiVersion+"/sobjects/PushTopic")
                 .addHeader("Authorization", "Bearer " + token)
                 .addHeader("Content-Type", "application/json")
                 .post(body)
@@ -288,19 +302,18 @@ public class StreamingServiceImpl implements StreamingService {
         String selectedObject = mapProperty.get("selectedObject");
 
         // access token 을 직접 넣을수가 없군
-        SalesforceComponent sfEcology = new SalesforceComponent();
-        sfEcology.setLoginUrl(mapProperty.get("loginUrl"));
-        sfEcology.setClientId(mapProperty.get("client_id"));
-        sfEcology.setClientSecret(mapProperty.get("client_secret"));
-        sfEcology.setUserName(mapProperty.get("username"));
-        sfEcology.setPassword(mapProperty.get("password"));
-        sfEcology.setPackages("com.apache.sfdc.router.dto");
+        SalesforceComponent sfComponent = new SalesforceComponent();
+        sfComponent.setLoginUrl(loginUrl);
+        sfComponent.setClientId(clientId);
+        sfComponent.setClientSecret(clientSecret);
+        sfComponent.setRefreshToken(mapProperty.get("refreshToken"));
+        sfComponent.setPackages("com.apache.sfdc.router.dto");
 
         RouteBuilder routeBuilder = new SalesforceRouterBuilder(selectedObject, mapType, streamingRepository);
 
         CamelContext myCamelContext = new DefaultCamelContext();
         myCamelContext.addRoutes(routeBuilder);
-        myCamelContext.addComponent("sf", sfEcology);
+        myCamelContext.addComponent("sf", sfComponent);
 
         try{
             myCamelContext.start();
