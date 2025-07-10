@@ -3,36 +3,26 @@ server:
 
 camel:
     component:
-        salesforce-ecology:
-            client-id: 3MVG9q4K8Dm94dAwF6D70zsfWDZO2vEz0CCf0bQtywOlbgdghIYL0JLpyG2HP5bvUkV5Lm1B.4bZE0z6pkVu3
-            client-secret: A532570413C1AB3952E7CEDEBDBFF0735651F2F8011B093C8CE03A646FF9AD0A
-            user-name: admin@ecologysyncmanagementco.kr.dev
-            password: qwer1234!t9IOoeW2u0GeELmPoVh4BOmh
-            login-url: https://login.salesforce.com
-
-        salesforce-sj:
-            client-id: 3MVG95mg0lk4batgePMPvmWhtCkufdqVIgJQ32OkosJzIcwZ4JPTPAHC_jE2sCgyY8E3qwQlPcjdZciFbsRpl
-            client-secret: 6D0905503B66B7C161637D352575B3C6D22DF9382048BA4D3A755CE1CB4621A7
-            user-name: test@aladin.com
-            password: qwer1234!CQ5mxg0LB4fIiTmun9vULnprj
-            login-url: https://login.salesforce.com
+        salesforce:
+            client-id: ${SALESFORCE_CLIENT_ID}
+            client-secret: ${SALESFORCE_CLIENT_SECRET}
+            login-url: ${SALESFORCE_LOGIN_URL}
+            api-version: ${SALESFORCE_API_VERSION}
+            instance-url: ${SALESFORCE_INSTANCE_URL}
 
 spring:
     datasource:
         driver-class-name: org.mariadb.jdbc.Driver
-        url: jdbc:mariadb://175.193.22.60:3307/config?characterEncoding=UTF-8
-        username: root
-        password: dbfltjdwls
+        url: ${DB_URL}
+        username: ${DB_USERNAME}
+        password: ${DB_PASSWORD}
     data:
         redis:
-            host: www.hsj-nas.kr
-            port: 6379
-            password: yuri
-
+            host: ${REDIS_URL}
+            port: ${REDIS_PORT}
+            password: ${REDIS_PASSWORD}
 
 mybatis:
     mapper-locations: classpath:mapper/**/*.xml
     configuration:
         mapUnderscoreToCamelCase: true
-
-
