@@ -13,6 +13,14 @@ java {
 	}
 }
 
+bootJar{
+    destinationDirectory = file("./target")
+    archivesBaseName = 'yuri'
+    archiveFileName = 'yuri.jar'
+    archiveVersion = "0.0.1"
+    mainClass = 'com.apache.sfdc.SfdcApplication'
+}
+
 repositories {
 	mavenCentral()
 }
