@@ -14,7 +14,7 @@ import java.util.Map;
 public class StreamingController {
     private final StreamingService routerService;
 
-    @GetMapping("/")
+    @GetMapping("/health")
     public ResponseEntity<String> health() {
         return ResponseEntity.ok("OK");
     }
