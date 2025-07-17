@@ -4,6 +4,7 @@ import com.apache.sfdc.common.SalesforceOAuth;
 import com.apache.sfdc.streaming.service.StreamingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -12,6 +13,12 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class StreamingController {
     private final StreamingService routerService;
+
+    // AWS ALB가 Health Check를 하기 위한 경로
+    @GetMapping("/health")
+    public ResponseEntity<String> health() {
+        return ResponseEntity.ok("OK");
+    }
 
     @PostMapping("/streaming")
     public String setPushTopic(@RequestBody String strJson) throws Exception {
